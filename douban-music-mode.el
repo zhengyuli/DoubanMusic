@@ -260,21 +260,15 @@
                              "-slave"
                            "")
                          (aget song 'url)))
-    (set-process-filter
+    (set-process-sentinel
      douban-music-current-process
-     'douban-music-proc-filter)
+     'douban-music-proc-sentinel)
     (setq douban-music-current-status "playing")))
 
-(defun douban-music-proc-filter (proc string)
-  (if (string-match
-       (if (string-match "mplayer" douban-music-player)
-           "Exiting"
-         (if (string-match "mpg123" douban-music-player)
-             "finished"))
-       string)
-      (progn
-        (douban-music-kill-process)
-        (douban-music-play-next-refresh))))
+(defun douban-music-proc-sentinel (proc event)
+  (unless (process-live-p proc)
+    (douban-music-kill-process)
+    (douban-music-play-next-refresh)))
 
 (defun douban-music-get-previous-song ()
   (if (null douban-music-song-list)
