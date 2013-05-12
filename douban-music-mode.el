@@ -1,7 +1,7 @@
 ;; -*- Emacs-Lisp -*-
 ;; -*- coding: utf-8; -*-
 ;;; douban-music-mode.el ---
-;; Time-stamp: <2013-05-12 22:44:16 Sunday by lzy>
+;; Time-stamp: <2013-05-13 07:40:51 Monday by lzy>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
@@ -282,7 +282,6 @@
 (defun douban-music-kill-process ()
   (when (and douban-music-current-process
              (process-live-p douban-music-current-process))
-    (set-process-sentinel douban-music-current-process nil)
     (delete-process douban-music-current-process)
     (setq douban-music-current-process nil)))
 
