@@ -1,7 +1,7 @@
 ;; -*- Emacs-Lisp -*-
 ;; -*- coding: utf-8; -*-
 ;;; douban-music-mode.el ---
-;; Time-stamp: <2013-05-07 17:54:04 Tuesday by lzy>
+;; Time-stamp: <2013-05-12 22:44:16 Sunday by lzy>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
@@ -148,11 +148,9 @@
         (define-key map "q" 'douban-music-bury-buffer)
         (define-key map "x" 'douban-music-quit)
         (define-key map "z" 'douban-music-current-song-info)
-        (if (string-match douban-music-player "mplayer")
-            (progn
-              (define-key map " " 'douban-music-pause/resume)
-              (define-key map "<" 'douban-music-seek-backward)
-              (define-key map ">" 'douban-music-seek-forward)))
+        (define-key map " " 'douban-music-pause/resume)
+        (define-key map "<" 'douban-music-seek-backward)
+        (define-key map ">" 'douban-music-seek-forward)
         map))
 
 (defun douban-music-pause/resume ()
@@ -177,17 +175,13 @@
 (defun douban-music-stop ()
   (interactive)
   (douban-music-kill-process)
-  (setq douban-music-current-status "stopped")
-  (setq douban-music-current-process nil))
+  (setq douban-music-current-status "stopped"))
 
 (defun douban-music-refresh ()
   (interactive)
-  (douban-music-get-song-list-async
-   (lambda (&rest callback-args)
-     (message "music refresh %s" (current-buffer))
-     (douban-music-get-song-list (current-buffer))
-     (douban-music-kill-process)
-     (douban-music-play))))
+  (douban-music-get-song-list)
+  (douban-music-kill-process)
+  (douban-music-play))
 
 (defun douban-music-goto-current-playing ()
   (interactive)
@@ -270,9 +264,8 @@
        'douban-music-proc-sentinel)
       (setq douban-music-current-status "playing"))))
 
-(defun douban-music-proc-sentinel (proc event)
-  (unless (process-live-p proc)
-    (douban-music-kill-process)
+(defun douban-music-proc-sentinel (proc change)
+  (when (string-match "\\(finished\\|Exiting\\)" change)
     (douban-music-play-next-refresh)))
 
 (defun douban-music-get-previous-song ()
@@ -286,12 +279,12 @@
       (error "song list is null")
     (setq douban-music-current-song (mod (+ douban-music-current-song 1)
                                          (length douban-music-song-list)))))
-
 (defun douban-music-kill-process ()
-  (dolist (elt (process-list))
-    (when (string-match "douban-music-proc" (process-name elt))
-      (set-process-sentinel elt nil)
-      (delete-process elt))))
+  (when (and douban-music-current-process
+             (process-live-p douban-music-current-process))
+    (set-process-sentinel douban-music-current-process nil)
+    (delete-process douban-music-current-process)
+    (setq douban-music-current-process nil)))
 
 (defun douban-music-get-channels ()
   "Get channels from douban music server"
@@ -325,19 +318,12 @@
                       (lambda (el1 el2)
                         (< (car el1) (car el2))))))))))
 
-(defun douban-music-get-song-list-async (callback)
-  "Get channels from douban music server, async version"
-  (let* ((url (if douban-music-channels
-                  (format douban-music-get-song-list-url douban-music-current-channel)
-                (error "douban-music-current-channel is nil"))))
-    (douban-music-send-url url nil callback)))
-
-(defun douban-music-get-song-list (&optional async-json-buffer)
+(defun douban-music-get-song-list ()
   "Get channels from douban music server"
   (let* ((url (if douban-music-current-channel
                   (format douban-music-get-song-list-url douban-music-current-channel)
                 (error "douban-music-current-channel is nil")))
-         (json-buffer (or async-json-buffer (douban-music-send-url url)))
+         (json-buffer (douban-music-send-url url))
          jason-start
          json-end
          jason)
@@ -408,12 +394,14 @@
       (if song
           (progn
             (insert douban-music-indent2)
-            (douban-music-download-and-insert-image-async (aget song 'picture) (current-buffer) (point)))
+            (douban-music-download-image-file (aget song 'picture))
+            (douban-music-insert-image (concat douban-music-cache-directory
+                                               douban-music-image-file)))
         (error "current song is nil"))
       (insert (concat (propertize (format "\n\n%sCurrent song: "
                                           douban-music-indent0)
                                   'face 'douban-music-track-face)
-                      (propertize (format "%s (kbps %s)"
+                      (propertize (format "%s (kbps %s) "
                                           (aget (elt douban-music-song-list douban-music-current-song) 'title)
                                           (aget (elt douban-music-song-list douban-music-current-song) 'kbps))
                                   'face 'douban-music-publish-year-face)))
@@ -458,10 +446,10 @@
     (set-buffer-modified-p nil)
     (setq buffer-read-only t)
     (goto-char (point-min))
-    (search-forward (format "Track%2d" douban-music-current-song))
+    (search-forward "Current song")
     (goto-char (line-end-position))))
 
-(defun douban-music-send-url (url &optional args callback)
+(defun douban-music-send-url (url &optional args)
   "Fetch data from douban music server."
   (let ((url-request-method "GET")
         (url-request-data (mapconcat (lambda (arg)
@@ -469,9 +457,7 @@
                                                "="
                                                (url-hexify-string (cdr arg))))
                                      args "&")))
-    (if callback
-        (url-retrieve url callback)
-      (url-retrieve-synchronously url))))
+    (url-retrieve-synchronously url)))
 
 (defun douban-music-insert-image (image-file)
   "Insert image file into text buffer."
@@ -487,28 +473,19 @@
          (delete-file image-file))
        nil))))
 
-(defun download-image-callback (status &rest arg)
-  (let ((douban-buffer (car arg))
-        (point (cadr arg))
-        (image-file (concat douban-music-cache-directory
+(defun douban-music-download-image-file (url)
+  "Download image file to douban music cache directory."
+  (let ((image-file (concat douban-music-cache-directory
                             douban-music-image-file)))
-    (setq buffer-file-coding-system 'no-conversion)
-    (goto-char (point-min))
-    (let ((end (search-forward "\n\n" nil t)))
-      (when end
-        (delete-region (point-min) end)
-        (write-region (point-min) (point-max) image-file nil 0)))
-    (kill-buffer)
-    (with-current-buffer douban-buffer
-      (save-excursion
-        (let ((buffer-read-only nil))
-          (goto-char point)
-          (douban-music-insert-image (concat douban-music-cache-directory
-                                             douban-music-image-file)))))))
-
-
-(defun douban-music-download-and-insert-image-async (url douban-buffer point)
-  (url-retrieve url #'download-image-callback (list douban-buffer point)))
+    (with-current-buffer (url-retrieve-synchronously url)
+      (setq buffer-file-coding-system 'no-conversion)
+      (goto-char (point-min))
+      (let ((end (search-forward "\n\n" nil t)))
+        (when end
+          (delete-region (point-min) end)
+          (write-region (point-min) (point-max) image-file nil 0)))
+      (kill-buffer))
+    image-file))
 
 ;;;###autoload
 (defun douban-music ()
