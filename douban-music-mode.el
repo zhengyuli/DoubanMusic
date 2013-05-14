@@ -1,7 +1,7 @@
 ;; -*- Emacs-Lisp -*-
 ;; -*- coding: utf-8; -*-
 ;;; douban-music-mode.el ---
-;; Time-stamp: <2013-05-13 07:40:51 Monday by lzy>
+;; Time-stamp: <2013-05-15 00:06:22 Wednesday by lzy>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
@@ -33,6 +33,9 @@
 ;; add the following lines into your configuration file
 ;;
 ;;   (autoload 'douban-music "douban-music-mode" nil t)
+
+;; 2012-05-15: zhengyu li <lizhengyu419@gmail.com>
+;;   get song list and insert album image with async mode
 
 ;; 2012-05-06: zhengyu li <lizhengyu419@gmail.com>
 ;;   add pause seek forward/backward for mplayer
@@ -141,13 +144,12 @@
         (define-key map (kbd "RET") 'douban-music-goto-current-playing)
         (define-key map "s" 'douban-music-stop)
         (define-key map "g" 'douban-music-refresh)
-        (define-key map "j" 'douban-music-goto-current-playing)
+        (define-key map "j" 'douban-music-current-song-info)
         (define-key map "c" 'douban-music-set-channel)
         (define-key map "n" 'douban-music-play-next)
         (define-key map "p" 'douban-music-play-previous)
         (define-key map "q" 'douban-music-bury-buffer)
         (define-key map "x" 'douban-music-quit)
-        (define-key map "z" 'douban-music-current-song-info)
         (define-key map " " 'douban-music-pause/resume)
         (define-key map "<" 'douban-music-seek-backward)
         (define-key map ">" 'douban-music-seek-forward)
@@ -179,14 +181,18 @@
 
 (defun douban-music-refresh ()
   (interactive)
-  (douban-music-get-song-list)
-  (douban-music-kill-process)
-  (douban-music-play))
+  (douban-music-get-song-list-async #'(lambda ()
+                                        (douban-music-kill-process)
+                                        (douban-music-play))))
 
 (defun douban-music-goto-current-playing ()
   (interactive)
   (if (string-match douban-music-current-status "playing")
-      (douban-music-interface-update)
+      (progn
+        (goto-char (point-min))
+        (search-forward (format "Current song"))
+        (goto-char (line-end-position))
+        (recenter-top-bottom))
     (if (string-match douban-music-current-status "stopped")
         (douban-music-play)
       (if (string-match douban-music-current-status "paused")
@@ -226,8 +232,8 @@
 
 (defun douban-music-current-song-info ()
   (interactive)
-  (princ (elt douban-music-song-list
-              douban-music-current-song)))
+  (goto-char (point-min))
+  (search-forward (format "Track%2d" douban-music-current-song)))
 
 (defun douban-music-bury-buffer ()
   (interactive)
@@ -287,11 +293,13 @@
 
 (defun douban-music-get-channels ()
   "Get channels from douban music server"
-  (let ((json-buffer (douban-music-send-url
-                      douban-music-get-channels-url))
-        jason-start
+  (douban-music-parse-channels (douban-music-send-url douban-music-get-channels-url)))
+
+(defun douban-music-parse-channels (json-buffer)
+  "Parse channels from json-buffer"
+  (let (json-start
         json-end
-        jason)
+        json)
     (with-current-buffer json-buffer
       (goto-char (point-min))
       (if (not (search-forward "channels"))
@@ -314,18 +322,30 @@
                      douban-music-channels))))
           (setq douban-music-channels
                 (sort douban-music-channels
-                      (lambda (el1 el2)
-                        (< (car el1) (car el2))))))))))
+                      #'(lambda (el1 el2)
+                          (< (car el1) (car el2))))))))))
 
 (defun douban-music-get-song-list ()
-  "Get channels from douban music server"
-  (let* ((url (if douban-music-current-channel
-                  (format douban-music-get-song-list-url douban-music-current-channel)
-                (error "douban-music-current-channel is nil")))
-         (json-buffer (douban-music-send-url url))
-         jason-start
-         json-end
-         jason)
+  "Get song list from douban music server"
+  (let* ((url (format douban-music-get-song-list-url douban-music-current-channel)))
+    (douban-music-parse-song-list (douban-music-send-url url))))
+
+(defun douban-music-get-song-list-async (callback)
+  "Get song list from douban music server async version"
+  (let  ((url (format douban-music-get-song-list-url douban-music-current-channel)))
+    (douban-music-send-url
+     url
+     nil
+     #'(lambda (status &rest args)
+         (douban-music-parse-song-list (current-buffer))
+         (funcall (car args)))
+     (list callback))))
+
+(defun douban-music-parse-song-list (json-buffer)
+  "Parse song list from json buffer"
+  (let (json-start
+        jsong-end
+        json)
     (with-current-buffer json-buffer
       (goto-char (point-min))
       (if (not (search-forward "song"))
@@ -346,145 +366,149 @@
                     (cons var douban-music-song-list)))))))))
 
 (defun douban-music-interface-update ()
-  (with-current-buffer douban-music-buffer-name
-    (setq buffer-read-only nil)
-    (erase-buffer)
-    (insert (concat (propertize "豆瓣"
-                                'face '(:height 1.3 :foreground "Grey70"))
-                    (propertize "FM"
-                                'face '(:height 1.4 :foreground "ForestGreen"))
-                    (propertize " douban.fm\n\n"
-                                'face '(:height 0.8 :foreground "grey70" :))))
-    (insert (propertize "Channels:"
-                        'face '(:foreground "Green3" :height 1.1)))
-    (insert (propertize (format "\n%s%s"
-                                douban-music-indent0
-                                douban-music-channels-delimiter)
-                        'face '(:foreground "Grey80")))
-    (let (channels
-          (counter 0)
-          (channel-list douban-music-channels))
-      (while channel-list
-        (if (zerop (mod counter 7))
-            (progn
-              (if (not (zerop counter))
-                  (insert channels))
-              (setq channels (format "\n%s" douban-music-indent0))))
-        (setq channels (concat channels (concat (propertize (format "%-3d" (caar channel-list))
-                                                            'face '(:foreground "Green"))
-                                                (propertize (format "%-10s " (cdar channel-list))
-                                                            'face '(:foreground "Grey80")))))
-        (setq counter (1+ counter))
-        (setq channel-list (cdr channel-list)))
-      (if (not (string-equal channels (format "\n%s" douban-music-indent0)))
-          (insert channels))
-      (insert (propertize (format "\n%s%s\n\n"
+  (let ((buffer-read-only nil))
+    (with-current-buffer douban-music-buffer-name
+      (erase-buffer)
+      (insert (concat (propertize "豆瓣"
+                                  'face '(:height 1.3 :foreground "Grey70"))
+                      (propertize "FM"
+                                  'face '(:height 1.4 :foreground "ForestGreen"))
+                      (propertize " douban.fm\n\n"
+                                  'face '(:height 0.8 :foreground "grey70" :))))
+      (insert (propertize "Channels:"
+                          'face '(:foreground "Green3" :height 1.1)))
+      (insert (propertize (format "\n%s%s"
                                   douban-music-indent0
                                   douban-music-channels-delimiter)
-                          'face '(:foreground "Grey80"))))
-    (let (song
-          title
-          album
-          artist
-          company
-          public-time
-          song-info)
-      (setq song (elt douban-music-song-list douban-music-current-song))
-      (if song
-          (progn
-            (insert douban-music-indent2)
-            (douban-music-download-image-file (aget song 'picture))
-            (douban-music-insert-image (concat douban-music-cache-directory
-                                               douban-music-image-file)))
-        (error "current song is nil"))
-      (insert (concat (propertize (format "\n\n%sCurrent song: "
-                                          douban-music-indent0)
-                                  'face 'douban-music-track-face)
-                      (propertize (format "%s (kbps %s) "
-                                          (aget (elt douban-music-song-list douban-music-current-song) 'title)
-                                          (aget (elt douban-music-song-list douban-music-current-song) 'kbps))
-                                  'face 'douban-music-publish-year-face)))
-      (insert (concat (propertize (format "\n%sCurrent channel: "
-                                          douban-music-indent0)
-                                  'face 'douban-music-track-face)
-                      (propertize (format "%s\n"
-                                          (cdr (assoc douban-music-current-channel douban-music-channels)))
-                                  'face 'douban-music-publish-year-face)))
-      (dotimes (i (length douban-music-song-list))
-        (setq song (elt douban-music-song-list i))
-        (setq title (aget song 'title))
-        (setq album (aget song 'albumtitle))
-        (setq artist (aget song 'artist))
-        (setq company (aget song 'company))
-        (setq public-time (aget song 'public_time))
-        (setq song-info (concat (propertize (format "\n%sTrack%2d " douban-music-indent1 i)
-                                            'face 'douban-music-track-face)
-                                (propertize "Title: " 'face 'douban-music-tag-face)
-                                (propertize (format "%s\n" title) 'face 'douban-music-title-face)
-                                (propertize (format "%sAlbum: "
-                                                    douban-music-indent4)
-                                            'face 'douban-music-tag-face)
-                                (propertize (format "%s\n" album)
-                                            'face 'douban-music-album-face)
-                                (propertize (format "%sArtist: "
-                                                    douban-music-indent4)
-                                            'face 'douban-music-tag-face)
-                                (propertize (format "%s\n" artist)
-                                            'face 'douban-music-artist-face)
-                                (propertize (format "%sCompany: "
-                                                    douban-music-indent4)
-                                            'face 'douban-music-tag-face)
-                                (propertize (format "%s\n" company)
-                                            'face 'douban-music-company-face)
-                                (propertize (format "%sPublish Year: "
-                                                    douban-music-indent4)
-                                            'face 'douban-music-tag-face)
-                                (propertize (format "%s" public-time)
-                                            'face 'douban-music-publish-year-face)))
-        (insert song-info)))
-    (set-buffer-modified-p nil)
-    (setq buffer-read-only t)
-    (goto-char (point-min))
-    (search-forward "Current song")
-    (goto-char (line-end-position))))
+                          'face '(:foreground "Grey80")))
+      (let (channels
+            (counter 0)
+            (channel-list douban-music-channels))
+        (while channel-list
+          (if (zerop (mod counter 7))
+              (progn
+                (if (not (zerop counter))
+                    (insert channels))
+                (setq channels (format "\n%s" douban-music-indent0))))
+          (setq channels (concat channels (concat (propertize (format "%-3d" (caar channel-list))
+                                                              'face '(:foreground "Green"))
+                                                  (propertize (format "%-10s " (cdar channel-list))
+                                                              'face '(:foreground "Grey80")))))
+          (setq counter (1+ counter))
+          (setq channel-list (cdr channel-list)))
+        (if (not (string-equal channels (format "\n%s" douban-music-indent0)))
+            (insert channels))
+        (insert (propertize (format "\n%s%s\n\n"
+                                    douban-music-indent0
+                                    douban-music-channels-delimiter)
+                            'face '(:foreground "Grey80"))))
+      (let (song
+            title
+            album
+            artist
+            company
+            public-time
+            song-info)
+        (setq song (elt douban-music-song-list douban-music-current-song))
+        (if song
+            (progn
+              (insert douban-music-indent2)
+              (douban-music-insert-image-async (aget song 'picture) (current-buffer) (point)))
+          (error "current song is nil"))
+        (insert (concat (propertize (format "\n\n%sCurrent song: "
+                                            douban-music-indent0)
+                                    'face 'douban-music-track-face)
+                        (propertize (format "%s (kbps %s) "
+                                            (aget (elt douban-music-song-list douban-music-current-song) 'title)
+                                            (aget (elt douban-music-song-list douban-music-current-song) 'kbps))
+                                    'face 'douban-music-publish-year-face)))
+        (insert (concat (propertize (format "\n%sCurrent channel: "
+                                            douban-music-indent0)
+                                    'face 'douban-music-track-face)
+                        (propertize (format "%s\n"
+                                            (cdr (assoc douban-music-current-channel douban-music-channels)))
+                                    'face 'douban-music-publish-year-face)))
+        (dotimes (i (length douban-music-song-list))
+          (setq song (elt douban-music-song-list i))
+          (setq title (aget song 'title))
+          (setq album (aget song 'albumtitle))
+          (setq artist (aget song 'artist))
+          (setq company (aget song 'company))
+          (setq public-time (aget song 'public_time))
+          (setq song-info (concat (propertize (format "\n%sTrack%2d " douban-music-indent1 i)
+                                              'face 'douban-music-track-face)
+                                  (propertize "Title: " 'face 'douban-music-tag-face)
+                                  (propertize (format "%s\n" title) 'face 'douban-music-title-face)
+                                  (propertize (format "%sAlbum: "
+                                                      douban-music-indent4)
+                                              'face 'douban-music-tag-face)
+                                  (propertize (format "%s\n" album)
+                                              'face 'douban-music-album-face)
+                                  (propertize (format "%sArtist: "
+                                                      douban-music-indent4)
+                                              'face 'douban-music-tag-face)
+                                  (propertize (format "%s\n" artist)
+                                              'face 'douban-music-artist-face)
+                                  (propertize (format "%sCompany: "
+                                                      douban-music-indent4)
+                                              'face 'douban-music-tag-face)
+                                  (propertize (format "%s\n" company)
+                                              'face 'douban-music-company-face)
+                                  (propertize (format "%sPublish Year: "
+                                                      douban-music-indent4)
+                                              'face 'douban-music-tag-face)
+                                  (propertize (format "%s" public-time)
+                                              'face 'douban-music-publish-year-face)))
+          (insert song-info)))
+      (set-buffer-modified-p nil)
+      (goto-char (point-min))
+      (search-forward "Current song")
+      (goto-char (line-end-position)))))
 
-(defun douban-music-send-url (url &optional args)
+(defun douban-music-send-url (url &optional url-args callback callback-args)
   "Fetch data from douban music server."
   (let ((url-request-method "GET")
-        (url-request-data (mapconcat (lambda (arg)
-                                       (concat (url-hexify-string (car arg))
-                                               "="
-                                               (url-hexify-string (cdr arg))))
-                                     args "&")))
-    (url-retrieve-synchronously url)))
+        (url-request-data (mapconcat #'(lambda (arg)
+                                         (concat (url-hexify-string (car arg))
+                                                 "="
+                                                 (url-hexify-string (cdr arg))))
+                                     url-args "&")))
+    (if callback
+        (url-retrieve url callback callback-args)
+      (url-retrieve-synchronously url))))
 
-(defun douban-music-insert-image (image-file)
-  "Insert image file into text buffer."
-  (when image-file
-    (condition-case err
-        (let ((img (progn
-                     (clear-image-cache image-file)
-                     (create-image image-file nil nil :relief 2 :ascent 'center))))
-          (insert-image img)
-          img)
-      (error
-       (when (file-exists-p image-file)
-         (delete-file image-file))
-       nil))))
-
-(defun douban-music-download-image-file (url)
-  "Download image file to douban music cache directory."
-  (let ((image-file (concat douban-music-cache-directory
-                            douban-music-image-file)))
-    (with-current-buffer (url-retrieve-synchronously url)
-      (setq buffer-file-coding-system 'no-conversion)
-      (goto-char (point-min))
-      (let ((end (search-forward "\n\n" nil t)))
-        (when end
-          (delete-region (point-min) end)
-          (write-region (point-min) (point-max) image-file nil 0)))
-      (kill-buffer))
-    image-file))
+(defun douban-music-insert-image-async (url insert-buffer insert-point)
+  "Insert image file async"
+  (douban-music-send-url
+   url
+   nil
+   #'(lambda (status &rest args)
+       (let ((insert-buffer (nth 0 args))
+             (insert-point (nth 1 args))
+             (image-file (concat douban-music-cache-directory
+                                 douban-music-image-file)))
+         (setq buffer-file-coding-system 'no-conversion)
+         (goto-char (point-min))
+         (let ((end (search-forward "\n\n" nil t)))
+           (when end
+             (delete-region (point-min) end)
+             (write-region (point-min) (point-max) image-file nil 0)))
+         (kill-buffer)
+         (with-current-buffer insert-buffer
+           (save-excursion
+             (let ((buffer-read-only nil))
+               (goto-char insert-point)
+               (condition-case err
+                   (let ((img (progn
+                                (clear-image-cache image-file)
+                                (create-image image-file nil nil :relief 2 :ascent 'center))))
+                     (insert-image img)
+                     img)
+                 (error
+                  (when (file-exists-p image-file)
+                    (delete-file image-file))
+                  nil)))))))
+   (list insert-buffer insert-point)))
 
 ;;;###autoload
 (defun douban-music ()
