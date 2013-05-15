@@ -1,7 +1,7 @@
 ;; -*- Emacs-Lisp -*-
 ;; -*- coding: utf-8; -*-
 ;;; douban-music-mode.el ---
-;; Time-stamp: <2013-05-15 10:33:31 Wednesday by lzy>
+;; Time-stamp: <2013-05-15 11:05:49 Wednesday by lzy>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
@@ -77,6 +77,11 @@
 
 (defface douban-music-track-face
   '((t (:height 1.2 :foreground "Grey70")))
+  "Face for douban music track"
+  :group 'douban-music)
+
+(defface douban-music-track-face1
+  '((t (:height 0.95 :foreground "Grey40")))
   "Face for douban music track"
   :group 'douban-music)
 
@@ -398,10 +403,15 @@
           (setq channel-list (cdr channel-list)))
         (if (not (string-equal channels (format "\n%s" douban-music-indent0)))
             (insert channels))
-        (insert (propertize (format "\n%s%s\n\n"
+        (insert (propertize (format "\n%s%s"
                                     douban-music-indent0
                                     douban-music-channels-delimiter)
                             'face '(:foreground "Grey80"))))
+      (insert (concat (propertize "\nCurrent channel: "
+                                  'face '(:foreground "Green3" :height 1.1))
+                      (propertize (format "%s\n\n"
+                                          (cdr (assoc douban-music-current-channel douban-music-channels)))
+                                  'face '(:foreground "Orange" :height 1.1))))
       (let (song
             title
             album
@@ -415,19 +425,28 @@
               (insert douban-music-indent2)
               (douban-music-insert-image-async (aget song 'picture) (current-buffer) (point)))
           (error "current song is nil"))
-        (insert (concat (propertize (format "\n\n%sCurrent song: "
+        (insert (concat (propertize (format "\n\n%sPrevious song: "
+                                            douban-music-indent0)
+                                    'face 'douban-music-track-face1)
+                        (propertize (format "%s "
+                                            (aget (elt douban-music-song-list (mod (- douban-music-current-song 1)
+                                                                                   (length douban-music-song-list))) 'title))
+                                    'face 'douban-music-track-face1)))
+        (insert (concat (propertize (format "\n%sCurrent song: "
                                             douban-music-indent0)
                                     'face 'douban-music-track-face)
                         (propertize (format "%s (kbps %s) "
                                             (aget (elt douban-music-song-list douban-music-current-song) 'title)
                                             (aget (elt douban-music-song-list douban-music-current-song) 'kbps))
                                     'face 'douban-music-publish-year-face)))
-        (insert (concat (propertize (format "\n%sCurrent channel: "
+        (insert (concat (propertize (format "\n%sNext song: "
                                             douban-music-indent0)
-                                    'face 'douban-music-track-face)
-                        (propertize (format "%s\n"
-                                            (cdr (assoc douban-music-current-channel douban-music-channels)))
-                                    'face 'douban-music-publish-year-face)))
+                                    'face 'douban-music-track-face1)
+                        (propertize (format "%s "
+                                            (aget (elt douban-music-song-list (mod (+ douban-music-current-song 1)
+                                                                                   (length douban-music-song-list))) 'title))
+                                    'face 'douban-music-track-face1)))
+
         (dotimes (i (length douban-music-song-list))
           (setq song (elt douban-music-song-list i))
           (setq title (aget song 'title))
@@ -435,7 +454,7 @@
           (setq artist (aget song 'artist))
           (setq company (aget song 'company))
           (setq public-time (aget song 'public_time))
-          (setq song-info (concat (propertize (format "\n%sTrack%2d " douban-music-indent1 i)
+          (setq song-info (concat (propertize (format "\n\n%sTrack%2d " douban-music-indent1 i)
                                               'face 'douban-music-track-face)
                                   (propertize "Title: " 'face 'douban-music-tag-face)
                                   (propertize (format "%s\n" title) 'face 'douban-music-title-face)
