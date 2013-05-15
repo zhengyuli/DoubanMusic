@@ -1,7 +1,7 @@
 ;; -*- Emacs-Lisp -*-
 ;; -*- coding: utf-8; -*-
 ;;; douban-music-mode.el ---
-;; Time-stamp: <2013-05-15 11:05:49 Wednesday by lzy>
+;; Time-stamp: <2013-05-15 17:38:10 Wednesday by lzy>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
@@ -81,7 +81,7 @@
   :group 'douban-music)
 
 (defface douban-music-track-face1
-  '((t (:height 0.95 :foreground "Grey40")))
+  '((t (:height 1.05 :foreground "Grey40")))
   "Face for douban music track"
   :group 'douban-music)
 
@@ -196,8 +196,7 @@
       (progn
         (goto-char (point-min))
         (search-forward (format "Current song"))
-        (goto-char (line-end-position))
-        (recenter-top-bottom))
+        (goto-char (line-end-position)))
     (if (string-match douban-music-current-status "stopped")
         (douban-music-play)
       (if (string-match douban-music-current-status "paused")
@@ -516,11 +515,11 @@
          (with-current-buffer insert-buffer
            (save-excursion
              (let ((buffer-read-only nil))
-               (goto-char insert-point)
                (condition-case err
                    (let ((img (progn
                                 (clear-image-cache image-file)
                                 (create-image image-file nil nil :relief 2 :ascent 'center))))
+                     (goto-char insert-point)
                      (insert-image img)
                      img)
                  (error
