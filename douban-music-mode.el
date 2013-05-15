@@ -1,7 +1,7 @@
 ;; -*- Emacs-Lisp -*-
 ;; -*- coding: utf-8; -*-
 ;;; douban-music-mode.el ---
-;; Time-stamp: <2013-05-15 00:06:22 Wednesday by lzy>
+;; Time-stamp: <2013-05-15 10:33:31 Wednesday by lzy>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
@@ -366,8 +366,8 @@
                     (cons var douban-music-song-list)))))))))
 
 (defun douban-music-interface-update ()
-  (let ((buffer-read-only nil))
-    (with-current-buffer douban-music-buffer-name
+  (with-current-buffer douban-music-buffer-name
+    (let ((buffer-read-only nil))
       (erase-buffer)
       (insert (concat (propertize "豆瓣"
                                   'face '(:height 1.3 :foreground "Grey70"))
