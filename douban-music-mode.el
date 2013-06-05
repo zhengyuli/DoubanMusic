@@ -1,7 +1,7 @@
 ;; -*- Emacs-Lisp -*-
 ;; -*- coding: utf-8; -*-
 ;;; douban-music-mode.el ---
-;; Time-stamp: <2013-05-15 17:38:10 Wednesday by lzy>
+;; Time-stamp: <2013-06-05 20:22:38 Wednesday by lzy>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
@@ -485,12 +485,13 @@
 
 (defun douban-music-send-url (url &optional url-args callback callback-args)
   "Fetch data from douban music server."
-  (let ((url-request-method "GET")
-        (url-request-data (mapconcat #'(lambda (arg)
-                                         (concat (url-hexify-string (car arg))
-                                                 "="
-                                                 (url-hexify-string (cdr arg))))
-                                     url-args "&")))
+  (let ((url-request-method "GET"))
+    (if url-args
+        (setq url-request-data (mapconcat #'(lambda (arg)
+                                              (concat (url-hexify-string (car arg))
+                                                      "="
+                                                      (url-hexify-string (cdr arg))))
+                                          url-args "&")))
     (if callback
         (url-retrieve url callback callback-args)
       (url-retrieve-synchronously url))))
