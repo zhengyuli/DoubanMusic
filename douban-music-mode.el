@@ -1,7 +1,7 @@
 ;; -*- Emacs-Lisp -*-
 ;; -*- coding: utf-8; -*-
 ;;; douban-music-mode.el ---
-;; Time-stamp: <2014-01-10 15:46:26 Friday by lzy>
+;; Time-stamp: <2014-01-10 15:52:08 Friday by lzy>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
