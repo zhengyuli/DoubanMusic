@@ -1,7 +1,7 @@
 ;; -*- Emacs-Lisp -*-
 ;; -*- coding: utf-8; -*-
 ;;; douban-music-mode.el ---
-;; Time-stamp: <2013-06-05 20:22:38 Wednesday by lzy>
+;; Time-stamp: <2014-01-10 15:46:26 Friday by lzy>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
@@ -205,7 +205,8 @@
 
 (defun douban-music-set-channel (channel-number)
   (interactive "nChannel number:")
-  (if (assoc channel-number douban-music-channels)
+  (if (or (assoc channel-number douban-music-channels)
+          (assoc (number-to-string channel-number) douban-music-channels))
       (progn
         (setq douban-music-current-channel channel-number)
         (message (format "Change to channel: %s"
@@ -327,7 +328,13 @@
           (setq douban-music-channels
                 (sort douban-music-channels
                       #'(lambda (el1 el2)
-                          (< (car el1) (car el2))))))))))
+                          (<
+                           (if (stringp (car el1))
+                               (string-to-number (car el1))
+                             (car el1))
+                           (if (stringp (car el2))
+                               (string-to-number (car el2))
+                             (car el2)))))))))))
 
 (defun douban-music-get-song-list ()
   "Get song list from douban music server"
@@ -389,14 +396,17 @@
             (counter 0)
             (channel-list douban-music-channels))
         (while channel-list
-          (if (zerop (mod counter 7))
+          (if (zerop (mod counter 5))
               (progn
                 (if (not (zerop counter))
                     (insert channels))
                 (setq channels (format "\n%s" douban-music-indent0))))
-          (setq channels (concat channels (concat (propertize (format "%-3d" (caar channel-list))
-                                                              'face '(:foreground "Green"))
-                                                  (propertize (format "%-10s " (cdar channel-list))
+          (setq channels (concat channels (concat (propertize
+                                                   (if (stringp (caar channel-list))
+                                                       (format "%-3s" (caar channel-list))
+                                                     (format "%-3d" (caar channel-list)))
+                                                   'face '(:foreground "Green"))
+                                                  (propertize (format "%-16s " (cdar channel-list))
                                                               'face '(:foreground "Grey80")))))
           (setq counter (1+ counter))
           (setq channel-list (cdr channel-list)))
@@ -409,7 +419,9 @@
       (insert (concat (propertize "\nCurrent channel: "
                                   'face '(:foreground "Green3" :height 1.1))
                       (propertize (format "%s\n\n"
-                                          (cdr (assoc douban-music-current-channel douban-music-channels)))
+                                          (cdr (if (assoc douban-music-current-channel douban-music-channels)
+                                                   (assoc douban-music-current-channel douban-music-channels)
+                                                 (assoc (number-to-string douban-music-current-channel) douban-music-channels))))
                                   'face '(:foreground "Orange" :height 1.1))))
       (let (song
             title
