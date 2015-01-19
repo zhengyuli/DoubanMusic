@@ -1,7 +1,7 @@
 ;; -*- Emacs-Lisp -*-
 ;; -*- coding: utf-8; -*-
 ;;; douban-music-mode.el ---
-;; Time-stamp: <2014-01-10 15:52:08 Friday by lzy>
+;; Time-stamp: <2014-12-15 16:02:05 Monday by zhengyuli>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
@@ -133,7 +133,6 @@
 (defvar douban-music-current-channel nil "Current channel for douban music.")
 (defvar douban-music-current-status "stopped" "Douban music current status.")
 (defvar douban-music-current-process nil "Current play process of douban music.")
-(defvar douban-music-image-file "image" "Image file used to save picture of current song")
 (defvar douban-music-indent0 " " "0-level indentation.")
 (defvar douban-music-indent1 "  " "1-level indentation.")
 (defvar douban-music-indent2 "    " "2-level indentation.")
@@ -509,29 +508,29 @@
       (url-retrieve-synchronously url))))
 
 (defun douban-music-insert-image-async (url insert-buffer insert-point)
-  "Insert image file async"
+  "Insert album image async"
   (douban-music-send-url
    url
    nil
    #'(lambda (status &rest args)
        (let ((insert-buffer (nth 0 args))
              (insert-point (nth 1 args))
-             (image-file (concat douban-music-cache-directory
-                                 douban-music-image-file)))
+             (insert-image nil)
+             (end nil))
          (setq buffer-file-coding-system 'no-conversion)
          (goto-char (point-min))
-         (let ((end (search-forward "\n\n" nil t)))
-           (when end
-             (delete-region (point-min) end)
-             (write-region (point-min) (point-max) image-file nil 0)))
+         (setq end (search-forward "\n\n" nil t))
+         (when end
+           (delete-region (point-min) end)
+           (setq insert-image (buffer-substring (point-min) (point-max))))
          (kill-buffer)
          (with-current-buffer insert-buffer
            (save-excursion
              (let ((buffer-read-only nil))
                (condition-case err
                    (let ((img (progn
-                                (clear-image-cache image-file)
-                                (create-image image-file nil nil :relief 2 :ascent 'center))))
+                                (clear-image-cache t)
+                                (create-image insert-image nil t :relief 2 :ascent 'center))))
                      (goto-char insert-point)
                      (insert-image img)
                      img)
