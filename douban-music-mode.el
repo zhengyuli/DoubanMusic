@@ -1,7 +1,7 @@
 ;; -*- Emacs-Lisp -*-
 ;; -*- coding: utf-8; -*-
 ;;; douban-music-mode.el ---
-;; Time-stamp: <2014-12-15 16:02:05 Monday by zhengyuli>
+;; Time-stamp: <2015-01-20 10:45:43 Tuesday by zhengyuli>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
@@ -252,9 +252,16 @@
     (douban-music-stop)
     (kill-buffer (current-buffer))))
 
+(defun douban-music-process-live-p (process)
+  "Returns non-nil if PROCESS is alive.
+    A process is considered alive if its status is `run', `open',
+    `listen', `connect' or `stop'."
+  (memq (process-status process)
+        '(run open listen connect stop)))
+
 (defun douban-music-play ()
   (unless (and douban-music-current-process
-               (process-live-p douban-music-current-process))
+               (douban-music-process-live-p douban-music-current-process))
     (let (song)
       (setq song (elt douban-music-song-list
                       douban-music-current-song))
@@ -291,7 +298,7 @@
                                          (length douban-music-song-list)))))
 (defun douban-music-kill-process ()
   (when (and douban-music-current-process
-             (process-live-p douban-music-current-process))
+             (douban-music-process-live-p douban-music-current-process))
     (delete-process douban-music-current-process)
     (setq douban-music-current-process nil)))
 
