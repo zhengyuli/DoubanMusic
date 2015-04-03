@@ -1,7 +1,5 @@
-;; -*- Emacs-Lisp -*-
-;; -*- coding: utf-8; -*-
-;;; douban-music-mode.el ---
-;; Time-stamp: <2015-01-20 10:45:43 Tuesday by zhengyuli>
+;;; douban-music-mode.el --- douban fm mode
+;; Time-stamp: <2015-04-03 15:17:50 Friday by zhengyuli>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
@@ -61,12 +59,12 @@
   :group 'entertainment)
 
 (defcustom douban-music-cache-directory "~/.emacs.d/DouBanMusic/"
-  "Default cache directory of douban music mode"
+  "Default cache directory of douban music mode."
   :type 'string
   :group 'douban-music)
 
 (defcustom douban-music-default-channel 0
-  "Default channel for douban music"
+  "Default channel for douban music."
   :type 'number
   :group 'douban-music)
 
@@ -115,7 +113,7 @@
   "Face for douban music publish year"
   :group 'douban-music)
 
-(defconst douban-music-buffer-name "Douban Music" "Douban music buffer name")
+(defconst douban-music-buffer-name "Douban Music" "Douban music buffer name.")
 
 (defconst douban-music-get-channels-url "http://www.douban.com/j/app/radio/channels"
   "Douban channel to retrive url.")
@@ -124,7 +122,7 @@
   "Url to fetch song list from douban music server.")
 
 (defconst douban-music-channels-delimiter "==================================================================================================="
-  "Delimiter for channels show")
+  "Delimiter for channels show.")
 
 ;; Internal variables
 (defvar douban-music-song-list nil "Song list for current channel.")
@@ -141,7 +139,7 @@
 
 ;; key map definition
 (defvar douban-music-mode-map nil
-  "Keymap for doubban music mode")
+  "Keymap for doubban music mode.")
 
 (setq douban-music-mode-map
       (let ((map (make-sparse-keymap)))
@@ -160,6 +158,7 @@
         map))
 
 (defun douban-music-pause/resume ()
+  "Toggle douban music."
   (interactive)
   (if (string-match douban-music-current-status "playing")
       (progn
@@ -171,25 +170,30 @@
           (process-send-string douban-music-current-process "pause\n")))))
 
 (defun douban-music-seek-forward ()
+  "Seek forward douban music."
   (interactive)
   (process-send-string douban-music-current-process "seek 2\n"))
 
 (defun douban-music-seek-backward ()
+  "Seek backward douban music."
   (interactive)
   (process-send-string douban-music-current-process "seek -2\n"))
 
 (defun douban-music-stop ()
+  "Stop douban music."
   (interactive)
   (douban-music-kill-process)
   (setq douban-music-current-status "stopped"))
 
 (defun douban-music-refresh ()
+  "Refresh douban music."
   (interactive)
   (douban-music-get-song-list-async #'(lambda ()
                                         (douban-music-kill-process)
                                         (douban-music-play))))
 
 (defun douban-music-goto-current-playing ()
+  "Go to current playing item of douban music."
   (interactive)
   (if (string-match douban-music-current-status "playing")
       (progn
@@ -203,6 +207,7 @@
         (error "Unknown status")))))
 
 (defun douban-music-set-channel (channel-number)
+  "Change douban channel with CHANNEL-NUMBER."
   (interactive "nChannel number:")
   (if (or (assoc channel-number douban-music-channels)
           (assoc (number-to-string channel-number) douban-music-channels))
@@ -214,12 +219,14 @@
     (message "Warnning: not exist channel")))
 
 (defun douban-music-play-next ()
+  "Play next song."
   (interactive)
   (douban-music-kill-process)
   (douban-music-get-next-song)
   (douban-music-play))
 
 (defun douban-music-play-next-refresh ()
+  "Play next song and refresh."
   (interactive)
   (let ((previous-song douban-music-current-song))
     (douban-music-kill-process)
@@ -229,17 +236,20 @@
       (douban-music-play))))
 
 (defun douban-music-play-previous ()
+  "Play previous song."
   (interactive)
   (douban-music-kill-process)
   (douban-music-get-previous-song)
   (douban-music-play))
 
 (defun douban-music-current-song-info ()
+  "Show current song info."
   (interactive)
   (goto-char (point-min))
   (search-forward (format "Track%2d" douban-music-current-song)))
 
 (defun douban-music-bury-buffer ()
+  "Bury douban music buffer."
   (interactive)
   (when (eq major-mode 'douban-music-mode)
     (if (fboundp 'quit-window)
@@ -247,12 +257,14 @@
       (bury-buffer))))
 
 (defun douban-music-quit ()
+  "Quit douban music mode."
   (interactive)
   (when (eq major-mode 'douban-music-mode)
     (douban-music-stop)
     (kill-buffer (current-buffer))))
 
 (defun douban-music-process-live-p (process)
+  "Check douban music PROCESS is alive."
   "Returns non-nil if PROCESS is alive.
     A process is considered alive if its status is `run', `open',
     `listen', `connect' or `stop'."
@@ -260,6 +272,7 @@
         '(run open listen connect stop)))
 
 (defun douban-music-play ()
+  "Douban music play entry."
   (unless (and douban-music-current-process
                (douban-music-process-live-p douban-music-current-process))
     (let (song)
@@ -282,32 +295,37 @@
       (setq douban-music-current-status "playing"))))
 
 (defun douban-music-proc-sentinel (proc change)
+  "Douban music process sentinel."
   (when (string-match "\\(finished\\|Exiting\\)" change)
     (douban-music-play-next-refresh)))
 
 (defun douban-music-get-previous-song ()
+  "Get previous song."
   (if (null douban-music-song-list)
-      (error "song list is null")
+      (error "Song list is null")
     (setq douban-music-current-song (mod (- douban-music-current-song 1)
                                          (length douban-music-song-list)))))
 
 (defun douban-music-get-next-song ()
+  "Get next song."
   (if (null douban-music-song-list)
-      (error "song list is null")
+      (error "Song list is null")
     (setq douban-music-current-song (mod (+ douban-music-current-song 1)
                                          (length douban-music-song-list)))))
 (defun douban-music-kill-process ()
+  "Kill current song."
   (when (and douban-music-current-process
              (douban-music-process-live-p douban-music-current-process))
     (delete-process douban-music-current-process)
     (setq douban-music-current-process nil)))
 
 (defun douban-music-get-channels ()
+  "Get douban music channels."
   "Get channels from douban music server"
   (douban-music-parse-channels (douban-music-send-url douban-music-get-channels-url)))
 
 (defun douban-music-parse-channels (json-buffer)
-  "Parse channels from json-buffer"
+  "Parse channels from JSON-BUFFER."
   (let (json-start
         json-end
         json)
@@ -343,12 +361,12 @@
                              (car el2)))))))))))
 
 (defun douban-music-get-song-list ()
-  "Get song list from douban music server"
+  "Get song list from douban music server."
   (let* ((url (format douban-music-get-song-list-url douban-music-current-channel)))
     (douban-music-parse-song-list (douban-music-send-url url))))
 
 (defun douban-music-get-song-list-async (callback)
-  "Get song list from douban music server async version"
+  "Get song list from douban music server with CALLBACK."
   (let  ((url (format douban-music-get-song-list-url douban-music-current-channel)))
     (douban-music-send-url
      url
@@ -359,7 +377,7 @@
      (list callback))))
 
 (defun douban-music-parse-song-list (json-buffer)
-  "Parse song list from json buffer"
+  "Parse song list from JSON-BUFFER."
   (let (json-start
         jsong-end
         json)
@@ -383,6 +401,7 @@
                     (cons var douban-music-song-list)))))))))
 
 (defun douban-music-interface-update ()
+  "Update douban music mode UI."
   (with-current-buffer douban-music-buffer-name
     (let ((buffer-read-only nil))
       (erase-buffer)
@@ -441,7 +460,7 @@
             (progn
               (insert douban-music-indent2)
               (douban-music-insert-image-async (aget song 'picture) (current-buffer) (point)))
-          (error "current song is nil"))
+          (error "Current song is nil"))
         (insert (concat (propertize (format "\n\n%sPrevious song: "
                                             douban-music-indent0)
                                     'face 'douban-music-track-face1)
@@ -502,7 +521,7 @@
       (goto-char (line-end-position)))))
 
 (defun douban-music-send-url (url &optional url-args callback callback-args)
-  "Fetch data from douban music server."
+  "Fetch data from douban music server with URL and optional URL-ARGS, CALLBACK and CALLBACK-ARGS."
   (let ((url-request-method "GET"))
     (if url-args
         (setq url-request-data (mapconcat #'(lambda (arg)
@@ -515,7 +534,7 @@
       (url-retrieve-synchronously url))))
 
 (defun douban-music-insert-image-async (url insert-buffer insert-point)
-  "Insert album image async"
+  "Insert album image async with URL, INSERT-BUFFER and INSERT-POINT."
   (douban-music-send-url
    url
    nil
