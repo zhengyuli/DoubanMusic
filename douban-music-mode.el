@@ -1,5 +1,5 @@
 ;;; douban-music-mode.el --- douban fm mode
-;; Time-stamp: <2015-04-03 15:17:50 Friday by zhengyuli>
+;; Time-stamp: <2015-08-17 14:04:42 Monday by zhengyuli>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
@@ -148,7 +148,7 @@
         (define-key map "g" 'douban-music-refresh)
         (define-key map "j" 'douban-music-current-song-info)
         (define-key map "c" 'douban-music-set-channel)
-        (define-key map "n" 'douban-music-play-next)
+        (define-key map "n" 'douban-music-play-next-refresh)
         (define-key map "p" 'douban-music-play-previous)
         (define-key map "q" 'douban-music-bury-buffer)
         (define-key map "x" 'douban-music-quit)
@@ -218,20 +218,14 @@
         (douban-music-refresh))
     (message "Warnning: not exist channel")))
 
-(defun douban-music-play-next ()
-  "Play next song."
-  (interactive)
-  (douban-music-kill-process)
-  (douban-music-get-next-song)
-  (douban-music-play))
-
 (defun douban-music-play-next-refresh ()
   "Play next song and refresh."
   (interactive)
   (let ((previous-song douban-music-current-song))
     (douban-music-kill-process)
     (douban-music-get-next-song)
-    (if (> previous-song douban-music-current-song)
+    (print (list previous-song douban-music-current-song))
+    (if (>= previous-song douban-music-current-song)
         (douban-music-refresh)
       (douban-music-play))))
 
