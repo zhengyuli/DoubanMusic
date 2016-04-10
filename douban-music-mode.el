@@ -1,5 +1,5 @@
 ;;; douban-music-mode.el --- douban fm mode
-;; Time-stamp: <2015-08-17 14:04:42 Monday by zhengyuli>
+;; Time-stamp: <2016-04-08 23:51:18 Friday by zhengyuli>
 
 ;; Copyright (C) 2013 zhengyu li
 ;;
@@ -554,10 +554,7 @@
                      (goto-char insert-point)
                      (insert-image img)
                      img)
-                 (error
-                  (when (file-exists-p image-file)
-                    (delete-file image-file))
-                  nil)))))))
+                 (error "Insert album picture failed")))))))
    (list insert-buffer insert-point)))
 
 ;;;###autoload
